@@ -4,16 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Debit Card Comparator · Lahore</title>
-
-<!-- PWA: manifest + icons + Add-to-Home-Screen metadata -->
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="favicon.png">
-<link rel="apple-touch-icon" href="apple-touch-icon.png">
-<meta name="theme-color" content="#0A1628">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Card Comp">
 <script>
 (function() {
   try {
@@ -4170,15 +4160,6 @@ applyAllCollapseStates();
 
 // After render, patch param inputs to show saved OV values
 // (renderParams uses saved OV via getOv, so values are already correct — no extra work needed)
-
-// Register service worker for offline support + "Add to Home Screen" installability.
-// Wrapped defensively since this file may also be opened directly via file:// during
-// local editing, where service workers aren't available.
-if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch((e) => console.warn('[sw] registration failed', e));
-  });
-}
 
 </script>
 <!-- ── FLOATING FILTER/SORT BUTTON ── -->
