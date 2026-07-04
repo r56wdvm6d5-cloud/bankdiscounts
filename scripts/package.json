@@ -1,0 +1,12 @@
+{
+  "name": "card-comparator-scrapers",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Scheduled scrapers that keep card-comparator's dining/discount data current. Each script under scrapers/ targets one bank's official discounts page.",
+  "scripts": {
+    "scrape:abl": "node scrapers/abl.js"
+  },
+  "dependencies": {
+    "playwright": "^1.45.0"
+  }
+}
