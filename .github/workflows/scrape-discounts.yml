@@ -1,0 +1,77 @@
+name: Scrape bank discount pages
+
+# Runs weekly, plus a manual "Run workflow" button for on-demand checks (e.g.
+# right after a bank announces a promo change). Every run's debug artifacts
+# (screenshot + raw text per bank) are uploaded so a scraper that needs
+# retuning can be diagnosed without re-running it locally.
+on:
+  schedule:
+    - cron: '0 6 * * 1' # Mondays 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: scripts
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Run ABL scraper
+        run: node scrapers/abl.js
+        continue-on-error: true # a broken selector shouldn't fail the whole workflow silently with no artifacts
+
+      # Add further scrapers here as they're built, each its own step so one
+      # bank's failure doesn't block the others:
+      # - name: Run Alfalah scraper
+      #   run: node scrapers/alfalah.js
+      #   continue-on-error: true
+      # - name: Run Askari scraper
+      #   run: node scrapers/askari.js
+      #   continue-on-error: true
+      # - name: Run Faysal scraper
+      #   run: node scrapers/faysal.js
+      #   continue-on-error: true
+
+      - name: Upload debug artifacts (screenshots + raw text)
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: scraper-debug-artifacts
+          path: data/debug/
+          retention-days: 14
+
+      - name: Open PR with any data changes
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: update scraped discount data'
+          branch: auto/scraped-discount-updates
+          title: 'Scraped discount data update'
+          body: |
+            Automated run of the discount scrapers.
+
+            **Before merging:** check the `scraper-debug-artifacts` upload on this
+            workflow run (Actions tab → this run → Artifacts) — each bank's
+            screenshot + raw text dump is there. If any file in this PR has
+            `"needs_review": true`, the scraper likely fell back to a generic
+            text scan rather than a tuned extraction, and the numbers should be
+            spot-checked against the screenshot before trusting them.
+          add-paths: |
+            data/discounts/*.json
+            data/debug/*
