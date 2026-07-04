@@ -1,0 +1,43 @@
+git checkout main
+git pull origin main
+
+# create correct workflow file
+mkdir -p .github/workflows
+cat > .github/workflows/deploy-pages.yml <<'EOF'
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: "pages-deploy-\${{ github.ref }}"
+      cancel-in-progress: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: "./"
+
+      - name: Deploy to GitHub Pages
+        uses: actions/deploy-pages@v1
+EOF
+
+# remove the mis-saved file with the space in the directory name
+git rm -f "github actions/discounts.yml"
+
+git add .github/workflows/deploy-pages.yml
+git commit -m "Add Pages workflow and remove mis-saved RTF workflow"
+git push origin main
