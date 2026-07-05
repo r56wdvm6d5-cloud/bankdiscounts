@@ -64,6 +64,19 @@ async function saveDebugArtifacts(page, bankId) {
   } catch (e) {
     console.warn(`[${bankId}] could not save DOM summary:`, e.message);
   }
+
+  // Full raw HTML — the most complete artifact. Catches things the summaries
+  // above can miss (CSS background-image tiles instead of <img>, elements
+  // built by a carousel plugin like Owl Carousel that don't show plain text
+  // the way a normal page does, etc). Large, but it's the ground truth when
+  // the lighter-weight dumps above don't explain what's on the page.
+  const htmlPath = path.join(DEBUG_DIR, `${bankId}.html`);
+  try {
+    const html = await page.content();
+    fs.writeFileSync(htmlPath, html, 'utf8');
+  } catch (e) {
+    console.warn(`[${bankId}] could not save full HTML:`, e.message);
+  }
 }
 
 // Generic fallback extraction: scans visible text for lines that look like
