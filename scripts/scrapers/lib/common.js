@@ -20,6 +20,7 @@ async function saveDebugArtifacts(page, bankId) {
   ensureDir(DEBUG_DIR);
   const screenshotPath = path.join(DEBUG_DIR, `${bankId}.png`);
   const textPath = path.join(DEBUG_DIR, `${bankId}.txt`);
+  const domPath = path.join(DEBUG_DIR, `${bankId}-dom-summary.txt`);
   try {
     await page.screenshot({ path: screenshotPath, fullPage: true });
   } catch (e) {
@@ -30,6 +31,38 @@ async function saveDebugArtifacts(page, bankId) {
     fs.writeFileSync(textPath, text, 'utf8');
   } catch (e) {
     console.warn(`[${bankId}] could not save text dump:`, e.message);
+  }
+  try {
+    const summary = await page.evaluate(() => {
+      const links = Array.from(document.querySelectorAll('a')).map(a => ({
+        text: a.textContent.trim().slice(0, 60),
+        href: a.getAttribute('href'),
+        cls: a.className,
+      })).filter(l => l.text || l.href);
+      const imgs = Array.from(document.querySelectorAll('img')).map(i => ({
+        alt: i.getAttribute('alt'),
+        src: i.getAttribute('src'),
+        cls: i.className,
+      })).filter(i => i.alt);
+      const buttons = Array.from(document.querySelectorAll('button, [role="button"], [onclick]')).map(b => ({
+        text: b.textContent.trim().slice(0, 60),
+        cls: b.className,
+      })).filter(b => b.text);
+      return { links, imgs, buttons };
+    });
+    const lines = [
+      `=== LINKS (${summary.links.length}) ===`,
+      ...summary.links.map(l => `text="${l.text}" href="${l.href}" class="${l.cls}"`),
+      '',
+      `=== IMAGES WITH ALT TEXT (${summary.imgs.length}) ===`,
+      ...summary.imgs.map(i => `alt="${i.alt}" src="${i.src}" class="${i.cls}"`),
+      '',
+      `=== BUTTONS / CLICKABLE (${summary.buttons.length}) ===`,
+      ...summary.buttons.map(b => `text="${b.text}" class="${b.cls}"`),
+    ];
+    fs.writeFileSync(domPath, lines.join('\n'), 'utf8');
+  } catch (e) {
+    console.warn(`[${bankId}] could not save DOM summary:`, e.message);
   }
 }
 
