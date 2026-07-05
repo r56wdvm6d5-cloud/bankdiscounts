@@ -16,11 +16,12 @@ const { saveDebugArtifacts, extractPercentLines, writeJsonIfChanged } = require(
 
 const BANK_ID = 'abl';
 const URL = 'https://www.abl.com/latest-offers/';
+const CITY = 'Lahore'; // matches the comparator's own Lahore localization
 const OUT_PATH = path.join(__dirname, '..', '..', 'data', 'discounts', `${BANK_ID}.json`);
 
-// Candidate selectors for the repeating "offer card" element. Tried in order;
-// first one that matches multiple elements wins. Update this list once the
-// real markup is visible in the debug dump.
+// Candidate selectors for the repeating "offer card" element, tried against
+// the page AFTER a city is selected (the landing page itself is just a city
+// picker — confirmed from a first run's screenshot, no offers live there).
 const CARD_SELECTORS = [
   '.offer-card',
   '.offers-list .card',
@@ -54,20 +55,30 @@ async function tryExtractCards(page) {
   return null;
 }
 
-// Some bank sites gate their discount list behind a card-tier tab/filter
-// (e.g. "Classic / Gold / Platinum / Infinite"). We log any tab-like controls
-// found so a human can tell us which one to click for ABL-INFINITE
-// specifically, since the default view may only show one tier.
-async function logPossibleTabs(page) {
-  const candidates = await page.$$eval(
-    'button, [role="tab"], .tab, .tabs a, [class*="tab"]',
-    els => els.map(e => e.textContent.trim()).filter(Boolean).slice(0, 40)
-  );
-  if (candidates.length) {
-    console.log('[abl] possible tab/filter controls found on page:', JSON.stringify(candidates));
-  } else {
-    console.log('[abl] no tab/filter-like controls detected');
+// Clicks the tile/link for our target city on the city-picker landing page.
+// Returns true if a click + subsequent navigation/content-load happened.
+async function selectCity(page, city) {
+  const locator = page.locator(`text=${city}`).first();
+  const count = await locator.count();
+  if (count === 0) {
+    console.log(`[abl] no element found matching city text "${city}"`);
+    return false;
   }
+
+  const beforeUrl = page.url();
+  try {
+    await Promise.all([
+      page.waitForNavigation({ timeout: 8000 }).catch(() => null), // may not actually navigate — could be same-page AJAX
+      locator.click(),
+    ]);
+  } catch (e) {
+    console.log(`[abl] click on "${city}" raised:`, e.message);
+  }
+  await page.waitForTimeout(2500); // give AJAX-loaded content time to render either way
+
+  const afterUrl = page.url();
+  console.log(`[abl] after clicking "${city}": url ${beforeUrl === afterUrl ? 'unchanged (likely AJAX)' : 'changed to ' + afterUrl}`);
+  return true;
 }
 
 (async () => {
@@ -78,10 +89,12 @@ async function logPossibleTabs(page) {
   await page.goto(URL, { waitUntil: 'networkidle', timeout: 45000 }).catch(e => {
     console.warn('[abl] navigation warning (continuing anyway):', e.message);
   });
-  // Give any lazy/async widgets a bit more time beyond networkidle.
-  await page.waitForTimeout(2500);
+  await page.waitForTimeout(1500);
 
-  await logPossibleTabs(page);
+  const clicked = await selectCity(page, CITY);
+  if (!clicked) {
+    console.log('[abl] could not select a city — saving landing-page debug artifacts only');
+  }
 
   let cards = await tryExtractCards(page);
   let method = 'structured';
@@ -90,19 +103,20 @@ async function logPossibleTabs(page) {
     console.log('[abl] no structured card selector matched — falling back to text-pattern scan');
     const bodyText = await page.evaluate(() => document.body.innerText);
     cards = extractPercentLines(bodyText).map(h => ({
-      merchant: null, // fallback can't reliably separate merchant name from surrounding text
+      merchant: null,
       discount_pct: h.pct,
       raw_text: h.raw,
     }));
     method = 'fallback_text_scan';
   }
 
-  await saveDebugArtifacts(page, BANK_ID);
+  await saveDebugArtifacts(page, BANK_ID); // now captures the post-city-selection state
   await browser.close();
 
   const payload = {
     bank: 'Allied Bank',
     source_url: URL,
+    city: CITY,
     scraped_at: new Date().toISOString(),
     extraction_method: method,
     needs_review: method === 'fallback_text_scan' || cards.length === 0,
