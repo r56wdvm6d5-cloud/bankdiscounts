@@ -1,8 +1,9 @@
 {
   "bank": "Allied Bank",
   "source_url": "https://www.abl.com/latest-offers/",
-  "scraped_at": null,
-  "extraction_method": null,
+  "city": "Lahore",
+  "scraped_at": "2026-09-21T11:14:08.525Z",
+  "extraction_method": "fallback_text_scan",
   "needs_review": true,
   "count": 0,
   "offers": []
